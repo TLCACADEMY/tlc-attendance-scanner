@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1"
+  >
+
+  <title>TLC Attendance</title>
+
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 25px;
+      background: #faf7ef;
+      color: #263226;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+
+    .card {
+      max-width: 650px;
+      margin: 0 auto;
+      background: white;
+      border: 5px solid #8fa581;
+      border-radius: 28px;
+      padding: 28px;
+      box-sizing: border-box;
+    }
+
+    h1 {
+      margin: 5px 0;
+      font-size: 38px;
+      color: #526b4c;
+    }
+
+    h2 {
+      margin: 8px 0 22px;
+      font-size: 28px;
+    }
+
+    #reader {
+      max-width: 500px;
+      margin: 20px auto;
+      overflow: hidden;
+      border-radius: 18px;
+    }
+
+    #message {
+      min-height: 95px;
+      margin-top: 20px;
+      font-size: 27px;
+      font-weight: bold;
+    }
+
+    button {
+      padding: 18px 32px;
+      border: none;
+      border-radius: 14px;
+      background: #526b4c;
+      color: white;
+      font-size: 24px;
+      font-weight: bold;
+    }
+
+    .success {
+      color: #39733e;
+    }
+
+    .error {
+      color: #a73737;
+    }
+
+    .waiting {
+      color: #526b4c;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <h1>The Learning Coop</h1>
+    <h2>Good Morning!</h2>
+
+    <p id="instructions">
+      Tap once to start the camera.<br>
+      Then hold each badge inside the box.
+    </p>
+
+    <button id="startButton" onclick="startScanner()">
+      Start Scanner
+    </button>
+
+    <div id="reader"></div>
+
+    <div id="message" class="waiting">
+      Ready to scan
+    </div>
+  </div>
+
+  <script>
+    /*
+      We will replace this line with your Apps Script web address
+      during the next step.
+    */
+    const API_URL = "https://script.google.com/macros/s/AKfycbysZwCKcN11rj3lVx5rjI30r9G_EPJGXRKR1oM0p_DblIkbu29ADcMpjg0fAQ3uIov6/exec";
+
+    let scanner;
+    let processing = false;
+    let lastCode = "";
+    let lastScanTime = 0;
+
+    function startScanner() {
+      document.getElementById("startButton").style.display = "none";
+
+      document.getElementById("instructions").textContent =
+        "Hold your badge inside the camera box.";
+
+      scanner = new Html5Qrcode("reader");
+
+      Html5Qrcode.getCameras()
+        .then(function (cameras) {
+          if (!cameras || cameras.length === 0) {
+            throw new Error("No camera was found.");
+          }
+
+          let cameraId = cameras[0].id;
+
+          for (let i = 0; i < cameras.length; i++) {
+            const label = (cameras[i].label || "").toLowerCase();
+
+            if (
+              label.includes("back") ||
+              label.includes("rear") ||
+              label.includes("environment")
+            ) {
+              cameraId = cameras[i].id;
+              break;
+            }
+          }
+
+          return scanner.start(
+            cameraId,
+            {
+              fps: 10,
+              qrbox: { width: 300, height: 300 }
+            },
+            handleScan,
+            function () {
+              // Ignore ordinary frames that do not contain a QR code.
+            }
+          );
+        })
+        .catch(function (error) {
+          showMessage(
+            "Camera Error: " + error,
+            "error"
+          );
+
+          document.getElementById("startButton").style.display =
+            "inline-block";
+        });
+    }
+
+    function handleScan(decodedText) {
+      const now = Date.now();
+
+      if (
+        processing ||
+        (decodedText === lastCode && now - lastScanTime < 5000)
+      ) {
+        return;
+      }
+
+      processing = true;
+      lastCode = decodedText;
+      lastScanTime = now;
+
+      showMessage("Recording scan…", "waiting");
+
+      sendScan(decodedText);
+    }
+
+    function sendScan(decodedText) {
+      if (API_URL.includes("PASTE_YOUR")) {
+        showMessage(
+          "The scanner still needs its attendance web address.",
+          "error"
+        );
+
+        resetScanner();
+        return;
+      }
+
+      const callbackName =
+        "tlcScanCallback_" + Date.now();
+
+      const script = document.createElement("script");
+
+      window[callbackName] = function (result) {
+        if (result && result.success) {
+          showMessage(result.message, "success");
+        } else {
+          showMessage(
+            result && result.message
+              ? result.message
+              : "Badge not recognized.",
+            "error"
+          );
+        }
+
+        delete window[callbackName];
+        script.remove();
+        resetScanner();
+      };
+
+      script.onerror = function () {
+        showMessage(
+          "The scan could not be recorded. Please try again.",
+          "error"
+        );
+
+        delete window[callbackName];
+        script.remove();
+        resetScanner();
+      };
+
+      script.src =
+        API_URL +
+        "?api=scan" +
+        "&badge=" + encodeURIComponent(decodedText) +
+        "&callback=" + encodeURIComponent(callbackName) +
+        "&time=" + Date.now();
+
+      document.body.appendChild(script);
+    }
+
+    function resetScanner() {
+      setTimeout(function () {
+        processing = false;
+        showMessage(
+          "Ready for the next badge",
+          "waiting"
+        );
+      }, 3000);
+    }
+
+    function showMessage(text, type) {
+      const message = document.getElementById("message");
+      message.textContent = text;
+      message.className = type;
+    }
+  </script>
+</body>
+</html>
