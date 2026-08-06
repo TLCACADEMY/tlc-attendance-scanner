@@ -204,6 +204,7 @@
       window[callbackName] = function (result) {
         if (result && result.success) {
           showMessage(result.message, "success");
+          playSuccessSound();
         } else {
           showMessage(
             result && result.message
@@ -248,7 +249,17 @@
         );
       }, 3000);
     }
+function playSuccessSound() {
 
+  const audio = new Audio(
+    "https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"
+  );
+
+  audio.volume = 0.4;
+
+  audio.play();
+
+}
     function showMessage(text, type) {
       const message = document.getElementById("message");
       message.textContent = text;
