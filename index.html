@@ -108,13 +108,15 @@
       during the next step.
     */
     const API_URL = "https://script.google.com/macros/s/AKfycbysZwCKcN11rj3lVx5rjI30r9G_EPJGXRKR1oM0p_DblIkbu29ADcMpjg0fAQ3uIov6/exec";
-
+let audioContext;
     let scanner;
     let processing = false;
     let lastCode = "";
     let lastScanTime = 0;
 
     function startScanner() {
+      audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
+audioContext.resume();
       document.getElementById("startButton").style.display = "none";
 
       document.getElementById("instructions").textContent =
@@ -203,7 +205,7 @@
 
       window[callbackName] = function (result) {
         if (result && result.success) {
-          showMessage(result.message, "success");
+          showMessage("✅ " + result.message, "success");
           playSuccessSound();
         } else {
           showMessage(
@@ -250,15 +252,19 @@
       }, 3000);
     }
 function playSuccessSound() {
+  if (!audioContext) return;
 
-  const audio = new Audio(
-    "https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"
-  );
+  const oscillator = audioContext.createOscillator();
+  const gain = audioContext.createGain();
 
-  audio.volume = 0.4;
+  oscillator.connect(gain);
+  gain.connect(audioContext.destination);
 
-  audio.play();
+  oscillator.frequency.value = 880;
+  gain.gain.value = 0.25;
 
+  oscillator.start();
+  oscillator.stop(audioContext.currentTime + 0.15);
 }
     function showMessage(text, type) {
       const message = document.getElementById("message");
