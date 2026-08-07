@@ -203,24 +203,35 @@ audioContext.resume();
 
       const script = document.createElement("script");
 
-      window[callbackName] = function (result) {
-        if (result && result.success) {
-          showMessage("✅ " + result.message, "success");
-          playSuccessSound();
-        } else {
-          showMessage(
-            result && result.message
-              ? result.message
-              : "Badge not recognized.",
-            "error"
-          );
-        }
+ window[callbackName] = function (result) {
+  if (result && result.success) {
 
-        delete window[callbackName];
-        script.remove();
-        resetScanner();
-      };
+    playSuccessSound();
 
+    if (
+      result.action === "OUT" &&
+      result.needsReason === true
+    ) {
+      showCheckoutReason(result);
+    } else {
+      showMessage("✅ " + result.message, "success");
+      resetScanner();
+    }
+
+  } else {
+    showMessage(
+      result && result.message
+        ? result.message
+        : "Badge not recognized.",
+      "error"
+    );
+
+    resetScanner();
+  }
+
+  delete window[callbackName];
+  script.remove();
+};
       script.onerror = function () {
         showMessage(
           "The scan could not be recorded. Please try again.",
@@ -251,7 +262,86 @@ audioContext.resume();
         );
       }, 3000);
     }
-function playSuccessSound() {
+function showCheckoutReason(result) {
+  processing = true;
+
+  const message = document.getElementById("message");
+  message.innerHTML = "";
+  message.className = "waiting";
+
+  const title = document.createElement("div");
+  title.textContent = "Why is " + result.studentName + " leaving?";
+  title.style.fontSize = "28px";
+  title.style.fontWeight = "bold";
+  title.style.marginBottom = "20px";
+  message.appendChild(title);
+
+  const reasons = [
+    "Ill",
+    "Appointment",
+    "Parent Choice",
+    "Other"
+  ];
+
+  reasons.forEach(function(reason) {
+    const button = document.createElement("button");
+    button.textContent = reason;
+    button.style.display = "block";
+    button.style.width = "100%";
+    button.style.maxWidth = "400px";
+    button.style.margin = "12px auto";
+    button.style.padding = "18px";
+    button.style.fontSize = "24px";
+    button.style.borderRadius = "12px";
+    button.style.cursor = "pointer";
+
+    button.onclick = function() {
+      saveCheckoutReason(result, reason);
+    };
+
+    message.appendChild(button);
+  });
+}
+
+function saveCheckoutReason(scanResult, reason) {
+  showMessage("Saving checkout reason...", "waiting");
+
+  const callbackName = "tlcReasonCallback_" + Date.now();
+  const script = document.createElement("script");
+
+  window[callbackName] = function(result) {
+    if (result && result.success) {
+      showMessage(
+        "✅ " + scanResult.studentName + " - " + reason,
+        "success"
+      );
+    } else {
+      showMessage("Could not save checkout reason.", "error");
+    }
+
+    delete window[callbackName];
+    script.remove();
+    resetScanner();
+  };
+
+  script.onerror = function() {
+    showMessage("Could not save checkout reason.", "error");
+    delete window[callbackName];
+    script.remove();
+    resetScanner();
+  };
+
+  script.src =
+    API_URL +
+    "?api=checkoutReason" +
+    "&studentId=" + encodeURIComponent(scanResult.studentId) +
+    "&reason=" + encodeURIComponent(reason) +
+    "&callback=" + encodeURIComponent(callbackName) +
+    "&time=" + Date.now();
+
+  document.body.appendChild(script);
+}    
+    function playSuccessSound() {
   if (!audioContext) return;
 
   const oscillator = audioContext.createOscillator();
