@@ -142,11 +142,11 @@ audioContext.resume();
           for (let i = 0; i < cameras.length; i++) {
             const label = (cameras[i].label || "").toLowerCase();
 
-            if (
-              label.includes("back") ||
-              label.includes("rear") ||
-              label.includes("environment")
-            ) {
+          if (
+  label.includes("front") ||
+  label.includes("user") ||
+  label.includes("facetime")
+) {
               cameraId = cameras[i].id;
               break;
             }
